@@ -159,23 +159,7 @@ int check_keydata(){
   return num;
 }
 
-void fingerprint_detecting(){
-  if (finger.getImage() == FINGERPRINT_OK){
-    if (finger.image2Tz() == FINGERPRINT_OK){
-      if (finger.image
-    }
-  }
-}
 
-void manage_finger(){
-  //비밀번호 감지가 안되고 있을 때 지문감지.
-  //지문 감지가 되면 아래 알고리즘 실행.
-  // matching finger true --> delete_finger
-  // false --> enroll_finger
-  fingerprint_detecting();
-  fingerprint_enroll(check_keydata());
-  
-}
 //######################################################
 
 
@@ -273,6 +257,28 @@ void fingerprint_enroll(uint8_t num){
     //Serial.println("지문 등록 시스템 실행 실패.\n");
     while(1);
   }
+}
+
+boolean fingerprint_detecting(){
+  if (finger.getImage() == FINGERPRINT_OK){
+    if (finger.image2Tz() == FINGERPRINT_OK){
+      if (finger.fingerFastSearch() == FINGERPRINT_OK){
+        Serial.print("일치하는 ID : ");
+        Serial.println(finger.fingerID);
+        return true;
+      }
+    }
+  }return false;
+}
+
+void manage_finger(){
+  //비밀번호 감지가 안되고 있을 때 지문감지.
+  //지문 감지가 되면 아래 알고리즘 실행.
+  // matching finger true --> delete_finger
+  // false --> enroll_finger
+
+  fingerprint_enroll(check_keydata());
+  
 }
 
 boolean Finger_case(int p){
@@ -379,7 +385,6 @@ void loop() {
   led_state('G');
   char key = keypad.getKey();
   if(key != 0){
-    //Keypad_Pressing_Recognition();
     bool input_check = checking();
     if(input_check == true){
       //Serial.println("문이 열립니다.");
