@@ -384,19 +384,16 @@ void loop() {
   //delay(100);
   led_state('G');
   char key = keypad.getKey();
-  if(key != 0){
+  if(key){
     bool input_check = checking();
     if(input_check == true){
       //Serial.println("문이 열립니다.");
       led_state('R');
       door_open();
       count = 0;
-    }
-    else if(input_check == false){
+    }else if(input_check == false){
       count++;
-      //Serial.print("비밀번호를 틀리셨습니다. (");
-      //Serial.print(count);
-      //Serial.println(" / 5회)\n");
+      //Serial.print("비밀번호를 틀리셨습니다. ("); Serial.print(count); Serial.println(" / 5회)\n");
       if(count >= 5){
         //Serial.println("비밀번호를 5번 틀리셨습니다. 5분간 정지합니다.");
         led_state('R');
@@ -404,8 +401,7 @@ void loop() {
         count = 0;
       }
     }
+  }else{
+    if (fingerprint_detecting()){ door_open(); }
   }
-  //else{ // Finger_matching
-    // true --> door_open(); 
-  //}
 }
