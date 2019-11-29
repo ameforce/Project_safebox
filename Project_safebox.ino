@@ -1,7 +1,7 @@
 #include <Adafruit_Fingerprint.h>
 #include <Keypad.h>
 #include <Servo.h>
-//123
+
 #define greenPin A0
 #define yellowPin A1
 #define redPin A2
@@ -160,7 +160,11 @@ int check_keydata(){
 }
 
 void fingerprint_detecting(){
-  
+  if (finger.getImage() == FINGERPRINT_OK){
+    if (finger.image2Tz() == FINGERPRINT_OK){
+      if (finger.image
+    }
+  }
 }
 
 void manage_finger(){
