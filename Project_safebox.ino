@@ -24,15 +24,17 @@
 #define ROWS 4
 #define COLS 4
 char led_State = 'F';
+void manage_finger();
+void getFingerprintEnroll(uint8_t num);
 
 
 
 //################keypad_passwd Area#####################
+
 byte rowpins[ROWS] = {9, 8, 7, 6};
 byte colpins[COLS] = {10, 11, 12, 13};
 byte count = 0;
 char key_data[4], master_passwd[16] = {0}; // temp_pw
-
 char keys[ROWS][COLS] = {
   {'1', '2', '3', 'A'},
   {'4', '5', '6', 'B'},
@@ -133,9 +135,9 @@ bool checking(){
   return check;
 }
 
-int check_keydata(){
+byte admin_mode(){
   char key[1];
-  int idx = 0, num;
+  byte idx = 0, num;
   Serial.println("관리자 모드 진입.");
   Serial.print("지문 아이디를 입력하세요 : ");
   Registration_Mode_Enter();
@@ -143,18 +145,20 @@ int check_keydata(){
      led_state('Y');
     if(key[0]){
       led_state('R');
-      if (idx == 0){ num = atoi(key) * 100; }
-      else if (idx == 1){ num += atoi(key) * 10; }
-      else if (idx == 2){ num += atoi(key); }
+      Keypad_Pressing_Recognition();
+      if (idx == 0){ num = atoi(key); }
+      else if (idx == 1 || idx == 2){ num *= 10; num += atoi(key);}
       else{ num = -1; }
       idx++;
       //Serial.println(); Serial.println(key[0]); Serial.println(atoi(key));
+    }else{
+      fingerprint_deleting();
     }
   }//Serial.println();
   
   while(num < 0 || num >= 128){
     //Serial.println("Rule : 0 ~ 127 사이의 값을 입력해야 합니다.");
-    num = check_keydata();
+    num = admin_mode();
   }
   return num;
 }
@@ -164,10 +168,11 @@ int check_keydata(){
 
 
 //################servo Area#####################
-Servo servo;
+
 
 void door_open(){
   //Serial.println("도어락 해제 중입니다.");
+  led_state('R');
   delay(1000);
   digitalWrite(lockerPin, LOW);
   delay(100);
@@ -175,8 +180,11 @@ void door_open(){
   //Serial.println("도어락 해제 완료.\n");
   delay(100);
   //Serial.println("자동문 오픈 중입니다.");
+  Servo servo;
+  servo.attach(servoPin);
   servo.write(180);
   delay(500);
+  servo.detach();
   //Serial.println("자동문 오픈 완료.\n");
   Door_Opened_Recognition();
   servo_reset();
@@ -184,7 +192,11 @@ void door_open(){
 
 void servo_reset(){
   //Serial.println("서보모터 리셋중 입니다.");
+  Servo servo;
+  servo.attach(servoPin);
   servo.write(0);
+  delay(500);
+  servo.detach();
   //Serial.println("서보모터 리셋 완료.\n");
 }
 //######################################################
@@ -243,32 +255,43 @@ SoftwareSerial mySerial(2, 3);
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 //uint8_t id;
 
-void fingerprint_enroll(uint8_t num){
+void fingerprint_enroll(byte num){
   Registration_Mode_Enter();
-  Serial.println("지문 등록 시스템 실행중 입니다.");
-  finger.begin(57600);
-  if (finger.verifyPassword()){
-    led_state('G');
-    Serial.println("지문 등록 시스템 실행 완료.\n");
-    Serial.print("현재 등록 중인 아이디 : ");
-    Serial.println(num);
-    getFingerprintEnroll(num);
-  }else{
-    //Serial.println("지문 등록 시스템 실행 실패.\n");
-    while(1);
-  }
+  Serial.print("현재 등록 중인 아이디 : ");
+  Serial.println(num);
+  getFingerprintEnroll(num);
 }
 
 boolean fingerprint_detecting(){
   if (finger.getImage() == FINGERPRINT_OK){
+    led_state('Y');
     if (finger.image2Tz() == FINGERPRINT_OK){
       if (finger.fingerFastSearch() == FINGERPRINT_OK){
         Serial.print("일치하는 ID : ");
         Serial.println(finger.fingerID);
+        while(finger.getImage() != FINGERPRINT_NOFINGER){ led_state('R'); }
         return true;
       }
     }
-  }return false;
+  }
+  return false;
+}
+
+boolean fingerprint_deleting(){
+  if (finger.getImage() == FINGERPRINT_OK){
+    led_state('Y');
+    if (finger.image2Tz() == FINGERPRINT_OK){
+      if (finger.fingerFastSearch() == FINGERPRINT_OK){
+        led_state('R');
+        Serial.print("해당 아이디를 삭제합니다 : ");
+        Serial.println(finger.fingerID);
+        Fingerprint_Recognition_Failure();
+        finger.deleteModel(finger.fingerID);
+        while(finger.getImage() != FINGERPRINT_NOFINGER){ led_state('R'); }
+        led_state('G');
+      }
+    }
+  }
 }
 
 void manage_finger(){
@@ -276,9 +299,7 @@ void manage_finger(){
   //지문 감지가 되면 아래 알고리즘 실행.
   // matching finger true --> delete_finger
   // false --> enroll_finger
-
-  fingerprint_enroll(check_keydata());
-  
+  fingerprint_enroll(admin_mode());
 }
 
 boolean Finger_case(int p){
@@ -302,6 +323,7 @@ boolean Finger_case(int p){
     case FINGERPRINT_ENROLLMISMATCH:
     led_state('R');
     Serial.println("지문이 일치하지 않습니다.");
+    Fingerprint_Recognition_Failure();
     return false;
 
     case FINGERPRINT_IMAGEMESS:
@@ -330,7 +352,7 @@ boolean Finger_case(int p){
     return false;
   }
 }
-void getFingerprintEnroll(uint8_t num) {
+void getFingerprintEnroll(byte num) {
   int p = -1;
   while ((p = finger.getImage()) != FINGERPRINT_OK){ Finger_case(p); }
   if (Finger_case(p)){
@@ -349,6 +371,7 @@ void getFingerprintEnroll(uint8_t num) {
           if (Finger_case(finger.storeModel(num))){
             Serial.println("지문 등록에 성공했습니다!!!");
             Fingerprint_Recognition_Success();
+            while(finger.getImage() != FINGERPRINT_NOFINGER){ led_state('R'); }
           }
         }
       }
@@ -367,28 +390,33 @@ void setup() {
   pinMode(redPin, OUTPUT);
   led_state('A');
 
-  servo.attach(servoPin);
   pinMode(lockerPin, OUTPUT);
   digitalWrite(lockerPin, HIGH);
   servo_reset();
 
-  
   while (!init_passwd());   //초기 비밀번호 세팅
   //Serial.println("초기 비밀번호 설정 완료!");
-  while(true){ loop(); }
+
+  Serial.println("지문 등록 시스템 실행중 입니다.");
+  finger.begin(57600);
+  if (finger.verifyPassword()){
+    led_state('G');
+    Serial.println("지문 등록 시스템 실행 완료.\n");
+  }else{
+    Serial.println("지문 등록 시스템 실행 실패...\n");
+    while(1);
+  }
 }
 
 
 void loop() {
   //Serial.println(analogRead(lightPin));
-  //delay(100);
   led_state('G');
   char key = keypad.getKey();
   if(key){
     bool input_check = checking();
     if(input_check == true){
       //Serial.println("문이 열립니다.");
-      led_state('R');
       door_open();
       count = 0;
     }else if(input_check == false){
